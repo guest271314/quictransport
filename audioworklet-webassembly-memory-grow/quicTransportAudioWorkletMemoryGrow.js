@@ -24,7 +24,6 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
       return;
     }
     let stream = result.value;
-
     console.log({ stream });
     const { readable } = stream;
     const ac = new AudioContext({
@@ -33,7 +32,7 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
     });
     const initial = (384 * 512 * 3) / 65536; // 3 seconds
     const maximum = (384 * 512 * 60 * 60) / 65536; // 1 hour
-    let totalBytes = 0;
+    let started = false;
     let readOffset = 0;
     let init = false;
     const memory = new WebAssembly.Memory({
@@ -70,7 +69,6 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
         const channels = outputs.flat();
         const uint8 = new Uint8Array(512);
         const uint8_sab = new Uint8Array(this.memory.buffer); // .slice(this.writeOffset, this.writeOffset + 512)
-
         try {
           for (let i = 0; i < 512; i++) {
             if (
@@ -83,7 +81,6 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
               ++this.writeOffset;
             }
           }
-
           const uint16 = new Uint16Array(uint8.buffer);
           // https://stackoverflow.com/a/35248852
           for (let i = 0, j = 0, n = 1; i < uint16.length; i++) {
@@ -99,7 +96,6 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
           throw e;
           return false;
         }
-
         return true;
       }
       endOfStream() {
@@ -128,7 +124,6 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
         { type: 'text/javascript' }
       )
     );
-
     await ac.audioWorklet.addModule(worklet);
     aw = new AudioWorkletNode(ac, 'audio-worklet-quic-transport-stream', {
       numberOfInputs: 1,
@@ -213,17 +208,18 @@ async function quicTransportAudioWorkletMemoryGrow(text) {
             for (
               ;
               i < value.buffer.byteLength;
-              i++, readOffset++, totalBytes++
+              i++, readOffset++
             ) {
               uint8_sab[readOffset] = value[i];
             }
-            if (readOffset > 384 * 512) {
+            if (readOffset > 384 * 512 && !started) {
+              started = true;
               aw.port.postMessage({ started: true });
             }
           },
           close() {
-            console.log(readOffset, totalBytes, memory.buffer.byteLength);
             aw.port.postMessage({ readOffset });
+            console.log(readOffset, memory.buffer.byteLength);
           },
         },
         new ByteLengthQueuingStrategy({ highWaterMark: 384 * 512 * 3 })
