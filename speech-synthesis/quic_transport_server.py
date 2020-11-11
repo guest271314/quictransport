@@ -93,7 +93,7 @@ BIND_ADDRESS = '::1'
 BIND_PORT = 4433
 ALLOWED_ORIGINS = {'localhost', 'googlechrome.github.io'}
 
-input_data = ''
+input_data = b''
 
 # QUIC uses two lowest bits of the stream ID to indicate whether the stream is:
 #   (a) unidirectional or bidirectional,
@@ -124,7 +124,7 @@ class CounterHandler:
         if isinstance(event, StreamDataReceived):
             if event.data:
                 global input_data
-                input_data = event.data
+                input_data = input_data + event.data
             self.counters[event.stream_id] += len(event.data)
                    
             if event.end_stream:
@@ -139,7 +139,7 @@ class CounterHandler:
                 payload = data.stdout #[44:len(data.stdout) - 44]
                 self.connection.send_stream_data(response_id, payload, True)
                 del self.counters[event.stream_id]
-
+                input_data = b''
         # Streams in QUIC can be closed in two ways: normal (FIN) and abnormal
         # (resets).  FIN is handled by event.end_stream logic above; the code
         # below handles the resets.
